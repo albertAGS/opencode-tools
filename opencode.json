@@ -1,4 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": []
+  "instructions": [],
+  "agent": {
+    "build": {
+      "permission": {
+        "task": {
+          "explorer": "allow",
+          "proposer": "allow",
+          "designer": "allow",
+          "spec-writer": "allow",
+          "orchestrator": "allow",
+          "verifier": "allow"
+        }
+      }
+    }
+  }
 }
