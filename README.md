@@ -62,6 +62,36 @@ Inside any opencode session, invoke agents with `@`:
   → runs lint + typecheck + tests, reports ✅/❌
 ```
 
+## MCP Memory Server
+
+A persistent memory server for opencode — stores facts, decisions, and context across sessions. See [feature-spec.md](feature-spec.md) for full details.
+
+```bash
+cd ~/opencode-tools/mcp-server && npm run build && npm start
+```
+
+### Usage
+
+```
+@remember "We chose httpResource over HttpClient.subscribe()"
+         topics: ["angular", "architecture"]
+  → { id: 42, topics: ["angular", "architecture"] }
+
+@recall "httpResource"
+  → Matches by content text (FTS5)
+
+@recall topic: "angular"
+  → All memories tagged "angular"
+
+@list_topics
+  → [{ topic: "angular", count: 5 }, { topic: "architecture", count: 2 }, ...]
+
+@forget id: 42
+  → { deleted: true }
+```
+
+Topics are JSON arrays — a memory can belong to multiple topics. Search by any of them.
+
 ## Per-project setup
 
 Each project should have an `AGENTS.md` that describes:

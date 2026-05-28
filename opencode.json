@@ -1,6 +1,13 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "instructions": [],
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["node", "/home/albert/opencode-tools/mcp-server/dist/index.js"],
+      "enabled": true
+    }
+  },
   "agent": {
     "build": {
       "permission": {
