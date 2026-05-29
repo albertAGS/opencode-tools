@@ -13,8 +13,9 @@ echo "   → Linking agents..."
 rm -f "$CONFIG_DIR/agents" 2>/dev/null
 ln -sf "$REPO_DIR/agents" "$CONFIG_DIR/agents"
 
-# Symlink skills dir
+# Symlink skills dir (remove first — ln -sf into existing dir creates inside)
 echo "   → Linking skills..."
+rm -rf "$CONFIG_DIR/skills" 2>/dev/null
 ln -sf "$REPO_DIR/skills" "$CONFIG_DIR/skills"
 
 # Symlink config (one source of truth — edit in repo, reflects everywhere)

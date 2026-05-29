@@ -92,6 +92,19 @@ cd ~/opencode-tools/mcp-server && npm run build && npm start
 
 Topics are JSON arrays — a memory can belong to multiple topics. Search by any of them.
 
+## Memory agent tab
+
+A dedicated **Memory** tab appears in your opencode session (switch with Tab). It has access to 4 MCP tools: `memory_remember`, `memory_recall`, `memory_forget`, `memory_list_topics`.
+
+Use it to store project decisions, architecture choices, and learnings — they persist across sessions.
+
+```
+[Tab: Plan]  [Tab: Build]  [Tab: Memory]
+                               ↑
+                      "store that we chose httpResource"
+                      "recall what we know about signals"
+```
+
 ## Per-project setup
 
 Each project should have an `AGENTS.md` that describes:
