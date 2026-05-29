@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": [],
+  "instructions": ["AGENTS.md"],
   "mcp": {
     "memory": {
       "type": "local",
