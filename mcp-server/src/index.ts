@@ -7,7 +7,18 @@ import { createRecallHandler, recallSchema } from './tools/recall.js';
 import { createForgetHandler, forgetSchema } from './tools/forget.js';
 import { createListTopicsHandler } from './tools/list-topics.js';
 
-const db = createDatabase();
+function resolveDbPath(): string | undefined {
+  const cliIndex = process.argv.indexOf('--db-path');
+  if (cliIndex !== -1 && cliIndex + 1 < process.argv.length) {
+    return process.argv[cliIndex + 1];
+  }
+  if (process.env.MEMORY_DB_PATH) {
+    return process.env.MEMORY_DB_PATH;
+  }
+  return undefined;
+}
+
+const db = createDatabase(resolveDbPath());
 
 const server = new McpServer({
   name: 'opencode-memory-server',

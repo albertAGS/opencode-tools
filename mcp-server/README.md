@@ -37,6 +37,33 @@ npm run build
 }
 ```
 
+### Custom DB path (cross-machine sync)
+
+By default, memories are stored at `mcp-server/db/memories.db`. To sync across machines, point to a cloud-synced folder:
+
+```bash
+# Via CLI arg:
+node dist/index.js --db-path ~/Dropbox/opencode/memories.db
+
+# Via env var:
+MEMORY_DB_PATH=~/Dropbox/opencode/memories.db node dist/index.js
+```
+
+**In opencode.json** (recommended):
+```json
+{
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["node", "/home/albert/opencode-tools/mcp-server/dist/index.js", "--db-path", "/home/albert/Dropbox/opencode/memories.db"],
+      "enabled": true
+    }
+  }
+}
+```
+
+The DB is tiny (a few KB) — syncs instantly via Dropbox, iCloud, Syncthing, or any cloud folder.
+
 ### Quick smoke test
 
 ```bash

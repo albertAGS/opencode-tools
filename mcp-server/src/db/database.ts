@@ -6,9 +6,11 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DB_PATH = path.join(__dirname, '..', '..', 'db', 'memories.db');
 
-const dbDir = path.dirname(DEFAULT_DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+function ensureDir(filePath: string) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
 
 export interface MemoryRecord {
@@ -32,6 +34,7 @@ interface TopicCountRow {
 
 export function createDatabase(dbPath?: string) {
   const resolvedPath = dbPath || DEFAULT_DB_PATH;
+  ensureDir(resolvedPath);
   const db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
 
