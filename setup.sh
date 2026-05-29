@@ -17,9 +17,11 @@ ln -sf "$REPO_DIR/agents" "$CONFIG_DIR/agents"
 echo "   → Linking skills..."
 ln -sf "$REPO_DIR/skills" "$CONFIG_DIR/skills"
 
-# Copy config files (not symlinks, so user can add local overrides)
-echo "   → Copying config..."
-cp "$REPO_DIR/opencode.json" "$CONFIG_DIR/opencode.json"
+# Symlink config (one source of truth — edit in repo, reflects everywhere)
+echo "   → Linking config..."
+ln -sf "$REPO_DIR/opencode.json" "$CONFIG_DIR/opencode.json"
+
+# Copy package.json (not symlinked, so users can add local plugins)
 cp "$REPO_DIR/package.json" "$CONFIG_DIR/package.json"
 
 # Install plugin dependencies
