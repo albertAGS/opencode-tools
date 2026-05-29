@@ -1,264 +1,437 @@
-# Feature: MCP Memory Server
+# Feature: Fix Orchestrator Agent — Prevent Direct Code Writing
 
 ## Overview
 
-An MCP (Model Context Protocol) server that gives opencode persistent memory across sessions. Stores facts, decisions, and context in SQLite with full-text search via FTS5. Think lightweight Engram — but in TypeScript.
+The orchestrator agent (`/home/albert/opencode-tools/agents/orchestrator.md`) has inconsistent permissions: it declares `edit: allow` and `write: allow`, which means it *can* write implementation code directly — contradicting its own rules, which say "Never modify implementation files." This is both a security risk and a process violation.
+
+The fix:
+
+1. **Tighten orchestrator permissions** — revoke `edit` and `write`, so the orchestrator can only coordinate subagents.
+2. **Introduce a dedicated Builder agent** (`builder.md`) with the permissions needed to write code, run builds, and create files. The builder is the *only* agent that writes implementation files.
+3. **Restructure orchestrator modes** — split the old "Build mode" into "Plan mode" (spec only) and "Implement mode" (handoff to builder), keeping "Verify mode" as-is.
+4. **Update the orchestrator's description and rules** to reflect the new separation of concerns.
+
+This enforces a clean pipeline: **Plan → Implement (via Builder) → Verify**, where the orchestrator never touches code.
 
 ## Requirements
 
-- [ ] 4 MCP tools: `remember`, `recall`, `forget`, `list_topics`
-- [ ] Topics stored as JSON array of strings (e.g. `["angular", "architecture"]`)
-- [ ] SQLite storage with FTS5 full-text search across content + topics_text
-- [ ] stdio transport (standard MCP pattern)
-- [ ] Configurable via `opencode.json` as a local MCP server
-- [ ] Part of the `opencode-tools` monorepo at `mcp-server/`
-- [ ] TypeScript, compiled to `dist/`
+- [ ] 1. Change `orchestrator.md` frontmatter: `edit: allow` → `edit: deny`, `write: allow` → `write: deny`; add `builder: allow` to task permissions
+- [ ] 2. Create `/home/albert/opencode-tools/agents/builder.md` as a new subagent with full read/edit/write/bash permissions
+- [ ] 3. Restructure orchestrator modes: rename "Build mode" to "Plan mode"; add new "Implement mode"; keep "Verify mode"
+- [ ] 4. Update orchestrator intro paragraph to describe 3 modes
+- [ ] 5. Update orchestrator rules to explicitly forbid writing implementation files
+- [ ] 6. Implement mode must check for an approved `feature-spec.md` before calling the builder
+- [ ] 7. Implement mode must present success/failure feedback after builder completes
+- [ ] 8. Orchestrator must never auto-implement — always wait for user approval of the spec before offering Implement mode
 
 ## Acceptance Criteria
 
-- `remember(content, topics?)` stores a memory, returns `{ id, topics }`. Topics is an array, defaults to `["general"]`
-- `recall(query?, topic?)` — content search (FTS5) and/or topic filter (via `json_each`)
-- `forget(id)` deletes a memory, confirms deletion
-- `list_topics()` returns all unique topics with memory count per topic
-- Server starts via `node dist/index.js` with stdio transport
-- `db/memories.db` is auto-created and gitignored
+### Orchestrator permissions hardened
+- **Given** the orchestrator agent file, **when** its frontmatter is inspected, **then** `edit` and `write` are both `deny`
+- **Given** the orchestrator agent file, **when** its task permissions are inspected, **then** `builder: allow` is present and `general` is not present
 
-## Proposer Analysis
+### Builder agent exists
+- **Given** the agents directory, **when** listing files, **then** `builder.md` exists
+- **Given** the builder agent file, **when** its frontmatter is inspected, **then** `edit: allow`, `write: allow`, and `bash: allow` are all set
 
-### Option A: Single-file server (Recommended)
-**Description**: All logic in one `src/index.ts` file. Simple, minimal.
+### Plan mode (renamed from Build mode)
+- **Given** a user says "plan" or "design", **when** the orchestrator enters Plan mode, **then** it runs the pipeline: explorer → proposer → designer → spec-writer
+- **Given** the spec is written, **when** presented to the user, **then** the orchestrator waits for explicit user approval
+- **Given** the user approves the spec, **when** the orchestrator responds, **then** it says "The spec is ready. Say 'implement' to hand off to the builder agent, or review and make changes."
 
-**Pros**:
-- ~100-150 lines total
-- Fastest to build
-- Easy to understand and modify
-- No over-engineering
+### Implement mode (new)
+- **Given** a user says "implement", **when** no approved `feature-spec.md` exists, **then** the orchestrator responds with "No approved spec found. Run Plan mode first."
+- **Given** a user says "implement" **and** an approved `feature-spec.md` exists, **when** the orchestrator enters Implement mode, **then** it calls the `@builder` subagent with the spec path, exploration findings, and proposal context
+- **Given** the builder completes successfully, **when** the orchestrator reports, **then** it says "✅ Implementation complete. Would you like me to run Verify mode?"
+- **Given** the builder fails, **when** the orchestrator reports, **then** it shows the error and asks the user to retry or fix the spec
 
-**Cons**:
-- Less scalable for future phases
-- Mixes concerns (transport, tools, DB)
+### Verify mode (unchanged)
+- **Given** a user says "verify", **when** the orchestrator enters Verify mode, **then** it runs the verifier and reports pass/fail per check
 
-**Complexity**: Low
+### Orchestrator never writes code
+- **Given** any user request, **when** the orchestrator is invoked, **then** it never creates, edits, or modifies any implementation file (`.ts`, `.py`, `.go`, `.js`, `.css`, `.html`, etc.)
+- **Given** a user asks to implement without a spec, **when** the orchestrator responds, **then** it refuses and suggests Plan mode first
 
-### Option B: Modular structure
-**Description**: Split into `src/index.ts`, `src/tools/*.ts`, `src/db/database.ts`.
+## Technical Approach
 
-**Pros**:
-- Clean separation of concerns
-- Easy to add Phase 2 (schema reader) later
-- Easier to test
+Two files are involved: one existing file to modify, one new file to create.
 
-**Cons**:
-- More boilerplate upfront
-- Slightly more complex
+### File 1: Modify `/home/albert/opencode-tools/agents/orchestrator.md`
 
-**Complexity**: Medium
+#### Frontmatter changes
 
-### Option C: Express-based HTTP server
-**Description**: Use Streamable HTTP transport instead of stdio.
+| Field | Before | After |
+|---|---|---|
+| `description` | `Coordinate the full SDD pipeline — explorer, proposer, designer, spec-writer, then verifier. Use to build features from start to finish or verify after implementation.` | `Coordinate the full SDD pipeline — plan, coordinate, and verify. Orchestrates explorer, proposer, designer, spec-writer, builder, and verifier agents. Never writes code directly.` |
+| `permission.edit` | `allow` | `deny` |
+| `permission.write` | `allow` | `deny` |
+| `permission.task` | `explorer: allow, proposer: allow, designer: allow, spec-writer: allow, verifier: allow` | `explorer: allow, proposer: allow, designer: allow, spec-writer: allow, builder: allow, verifier: allow` |
 
-**Pros**:
-- Can run remotely
-- Familiar Express patterns
+#### Intro paragraph (lines 23-25)
 
-**Cons**:
-- Overkill for a local developer tool
-- Requires port management
-- More dependencies
+Replace:
 
-**Complexity**: High
+```
+You are an Orchestrator agent. You coordinate the full SDD pipeline.
 
-### Recommendation
+You call specialized subagents in sequence to take a feature from idea to spec, or from implementation to verified.
+```
 
-**Option B** — modular structure. Phase 2 (schema reader) and Phase 3 (more tools) are planned, so the modular structure pays off quickly. It's still simple but ready to grow.
+With:
+
+```
+You are an Orchestrator agent. You coordinate the full SDD pipeline — from idea to spec to implementation to verification. You never write code yourself.
+
+You call specialized subagents in sequence to take a feature from idea to spec (Plan mode), from spec to code (Implement mode), and from code to verified (Verify mode).
+```
+
+#### Mode structure — replace entire "Modes" section
+
+**Old (lines 27-50):**
+
+```
+## Modes
+
+### Build mode
+Use when the caller says "build", "plan", or provides a feature request.
+
+The caller should provide the context from prior discussion.
+
+Run the pipeline in order:
+
+1. **@explorer** — research the codebase for existing patterns, conventions, and relevant files
+2. **@proposer** — suggest 2-3 technical approaches with pros and cons
+3. **@designer** — plan component tree, data flow, routes, and file structure
+4. **@spec-writer** — write `feature-spec.md` with full spec and design blueprint
+
+After the pipeline completes, present the spec to the user and wait for manual approval.
+
+### Verify mode
+Use when the caller says "verify", "check", or "review".
+
+Run:
+
+1. **@verifier** — run lint, typecheck, and tests
+2. Report results to the user
+3. If failures: explain what to fix and suggest the user makes fixes, then verify again
+```
+
+**New:**
+
+```
+## Modes
+
+### Mode 1: Plan mode
+Use when the caller says "plan", "design", "build", "spec", or provides a feature request.
+
+The caller should provide the context from prior discussion.
+
+Run the pipeline in order:
+
+1. **@explorer** — research the codebase for existing patterns, conventions, and relevant files
+2. **@proposer** — suggest 2-3 technical approaches with pros and cons
+3. **@designer** — plan component tree, data flow, routes, and file structure
+4. **@spec-writer** — write `feature-spec.md` with full spec and design blueprint
+
+After the pipeline completes, present the spec to the user and wait for explicit approval.
+
+After the user approves, say: "The spec is ready. Say 'implement' to hand off to the builder agent, or review and make changes."
+
+Do NOT implement. Never write code yourself.
+
+### Mode 2: Implement mode
+Use when the caller says "implement", "build code", "implement spec", or "write code".
+
+Precondition: An approved `feature-spec.md` must exist.
+
+If no approved spec exists, respond: "No approved spec found. Run Plan mode first."
+
+If a spec exists, hand off to the builder:
+
+1. Call **@builder** subagent
+2. Pass context: path to `feature-spec.md`, exploration findings summary, selected proposal approach
+3. Instruction: "Implement the feature according to the spec. Follow the design blueprint exactly. Write all files, then run the build command."
+4. After builder completes:
+   - If success: "✅ Implementation complete. Would you like me to run Verify mode?"
+   - If builder fails: report the error, ask the user to retry or fix the spec
+
+### Mode 3: Verify mode
+Use when the caller says "verify", "check", or "review".
+
+Run:
+
+1. **@verifier** — run lint, typecheck, and tests
+2. Report results to the user
+3. If failures: explain what to fix and suggest running Implement mode again, then verify again
+```
+
+#### Rules section — replace entire text
+
+**Old (lines 52-58):**
+
+```
+## Rules
+
+- Never modify implementation files (`.ts`, `.py`, `.go`, `.js`, etc.) — only `.md` files
+- Always wait for user approval after writing the spec — never auto-implement
+- If any subagent fails, report the failure and stop
+- Run steps sequentially — each step depends on the previous
+- After verify mode, clearly state ✅ PASS or ❌ FAIL for each check
+```
+
+**New:**
+
+```
+## Rules
+
+- **Never write, edit, or modify implementation files** (`.ts`, `.py`, `.go`, `.js`, `.css`, `.html`, etc.) — you are a coordinator, not a builder. Only read files and write `.md` files through the `@spec-writer` subagent.
+- **Always run the full pipeline in order** — never skip steps. Each step depends on the previous.
+- **Always present the completed spec to the user and wait for explicit approval** — never auto-implement.
+- **Never implement yourself.** After the user approves the spec, offer to run **Implement mode** to hand off to the `@builder` subagent.
+- **If any subagent fails, report the failure and stop** — do not continue the pipeline.
+- **Run steps sequentially** — never parallelize dependent steps.
+- **After Verify mode, clearly state ✅ PASS or ❌ FAIL for each check.**
+- **If the caller asks for implementation without a spec, refuse and suggest Plan mode first.**
+```
 
 ---
 
+### File 2: Create `/home/albert/opencode-tools/agents/builder.md`
+
+#### Frontmatter
+
+```yaml
+description: Implement features from an approved spec — writes code, creates files, and runs builds. Reads feature-spec.md and AGENTS.md. Use after the spec is approved by the user.
+mode: subagent
+permission:
+  read: allow
+  edit: allow
+  write: allow
+  glob: allow
+  grep: allow
+  bash:
+    '*': allow
+  webfetch: allow
+  websearch: deny
+  question: allow
+  task: deny
+```
+
+#### Body / Rules
+
+```markdown
+You are a Builder agent — you implement features from an approved specification.
+
+Your job is to write all implementation files and verify the build compiles. You are the only agent that modifies code.
+
+## Workflow
+
+1. **Read AGENTS.md** — understand the project's stack, conventions, and rules
+2. **Read `feature-spec.md`** — understand the full spec and design blueprint
+3. **Implement** — write all files as specified in the File Plan
+4. **Build** — run the build command (e.g., `npm run build`, `tsc`, etc.)
+5. **Report** — summarize what was created, what was modified, and whether the build passed
+
+## Rules
+
+- Always read AGENTS.md and feature-spec.md first
+- Follow the design blueprint exactly — file structure, component tree, data flow, routes
+- Do not deviate from the spec without asking the user
+- Write all files specified in the File Plan
+- After writing code, run the build command
+- Report what was created, modified, and whether the build passed
+- If the build fails, report errors and ask the user whether to fix
+- Never create or modify `.md` spec files (leave that to spec-writer)
+```
+
 ## Design Blueprint
 
-### File Structure
+The following design is provided by the Design Blueprint from the proposer/designer pipeline. It specifies the exact changes to implement.
 
-```
-opencode-tools/mcp-server/
-  package.json
-  tsconfig.json
-  .gitignore
-  src/
-    index.ts              ← Entry: create McpServer, register tools, connect stdio transport
-    tools/
-      remember.ts         ← remember tool handler
-      recall.ts           ← recall tool handler
-      forget.ts           ← forget tool handler
-      list-topics.ts      ← list_topics tool handler
-    db/
-      database.ts         ← SQLite init, FTS5 setup, CRUD operations
-  db/
-    memories.db           ← auto-created (gitignored)
-  dist/                   ← compiled output (gitignored)
-```
+### Orchestrator Agent Changes (`orchestrator.md`)
 
-### Data Flow
+#### Exact frontmatter
 
-```
-opencode session
-  │
-  └── MCP Server (stdio transport)
-        │
-        └── Tool handler called by name
-              │
-              └── database.ts
-                    └── better-sqlite3 → memories.db (SQLite + FTS5)
+**Before:**
+
+```yaml
+description: Coordinate the full SDD pipeline — explorer, proposer, designer, spec-writer, then verifier. Use to build features from start to finish or verify after implementation.
+permission:
+  edit: allow
+  write: allow
+  task:
+    explorer: allow
+    proposer: allow
+    designer: allow
+    spec-writer: allow
+    verifier: allow
 ```
 
-### Database Schema
+**After:**
 
-```sql
-CREATE TABLE memories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  topics TEXT NOT NULL DEFAULT '[]',         -- JSON array: ["angular", "architecture"]
-  topics_text TEXT NOT NULL DEFAULT '',       -- flattened for FTS5 search
-  content TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE VIRTUAL TABLE memories_fts USING fts5(content, topics_text, content=memories, content_rowid=id);
-
--- Triggers to keep FTS in sync
-CREATE TRIGGER memories_ai AFTER INSERT ON memories BEGIN
-  INSERT INTO memories_fts(rowid, content, topics_text) VALUES (new.id, new.content, new.topics_text);
-END;
-
-CREATE TRIGGER memories_ad AFTER DELETE ON memories BEGIN
-  INSERT INTO memories_fts(memories_fts, rowid, content, topics_text) VALUES('delete', old.id, old.content, old.topics_text);
-END;
-
-CREATE TRIGGER memories_au AFTER UPDATE ON memories BEGIN
-  INSERT INTO memories_fts(memories_fts, rowid, content, topics_text) VALUES('delete', old.id, old.content, old.topics_text);
-  INSERT INTO memories_fts(rowid, content, topics_text) VALUES (new.id, new.content, new.topics_text);
-END;
+```yaml
+description: Coordinate the full SDD pipeline — plan, coordinate, and verify. Orchestrates explorer, proposer, designer, spec-writer, builder, and verifier agents. Never writes code directly.
+permission:
+  edit: deny
+  write: deny
+  task:
+    explorer: allow
+    proposer: allow
+    designer: allow
+    spec-writer: allow
+    builder: allow
+    verifier: allow
 ```
 
-### Tool API Design
+#### Intro paragraph
 
-#### `remember`
-- **Params**: `content` (string, required), `topics` (string[], optional — defaults to `["general"]`)
-- **Returns**: `{ id: number, topics: string[] }`
-
-#### `recall`
-- **Params**: `query` (string, optional), `topic` (string, optional — filter by topic)
-- **Returns**: `{ results: Array<{ id, topics, content, created_at, rank }> }`
-
-#### `forget`
-- **Params**: `id` (number, required)
-- **Returns**: `{ deleted: boolean }`
-
-#### `list_topics`
-- **Params**: none
-- **Returns**: `{ topics: Array<{ topic: string, count: number }> }`
-
-### MCP SDK Usage (v1)
-
-```typescript
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-```
-
-Tools are registered via `setRequestHandler(ListToolsRequestSchema, ...)` for listing and `setRequestHandler(CallToolRequestSchema, ...)` for calling.
-
-### Dependencies
-
-- `@modelcontextprotocol/sdk` — v1.29.0 (stable)
-- `better-sqlite3` — v12.10.0
-- `typescript` — dev dependency
-- `@types/better-sqlite3` — dev dependency
-
-### Package.json scripts
-
-```json
-{
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
-  }
-}
-```
-
-### .gitignore
+Replace lines 23-25 with:
 
 ```
-dist/
-db/*.db
-node_modules/
+You are an Orchestrator agent. You coordinate the full SDD pipeline — from idea to spec to implementation to verification. You never write code yourself.
+
+You call specialized subagents in sequence to take a feature from idea to spec (Plan mode), from spec to code (Implement mode), and from code to verified (Verify mode).
 ```
 
-### States
+#### Mode 1: Plan mode (renamed from "Build mode")
 
-**Loading**: Server starts, initializes SQLite + FTS5, registers tools, connects transport.
+- Entry keywords: "plan", "design", "build", "spec", or provides a feature request
+- Pipeline: @explorer → @proposer → @designer → @spec-writer
+- After spec is written: present to user, wait for explicit approval
+- After approval: say "The spec is ready. Say 'implement' to hand off to the builder agent, or review and make changes."
+- Do NOT implement
 
-**Empty**: No memories stored — `recall` returns empty array, `list_topics` returns empty array.
+#### Mode 2: Implement mode (NEW)
 
-**Error**: 
-- Invalid params (missing `content`, non-numeric `id`) → return error message
-- SQLite errors → return error message
-- FTS5 query syntax errors → return error message
+- Entry keywords: "implement", "build code", "implement spec", "write code"
+- Precondition: An approved `feature-spec.md` must exist
+- Handoff:
+  1. Call @builder subagent
+  2. Pass context: path to feature-spec.md, exploration findings summary, selected proposal approach
+  3. Instruction: "Implement the feature according to the spec. Follow the design blueprint exactly. Write all files, then run the build command."
+  4. After builder completes:
+     - If success: "✅ Implementation complete. Would you like me to run Verify mode?"
+     - If builder fails: report error, ask user to retry or fix spec
+- If no spec: "No approved spec found. Run Plan mode first."
 
-**Success**: Normal operation — tools return expected results.
+#### Mode 3: Verify mode (unchanged)
 
-## Usage Examples
+- Entry keywords: "verify", "check", "review"
+- Pipeline: @verifier → report results
+- After failures: explain what to fix and suggest running Implement mode again, then verify again
 
-```
-@remember "We chose httpResource over HttpClient.subscribe() for type safety"
-         topics: ["angular", "architecture", "signals"]
-  → { id: 42, topics: ["angular", "architecture", "signals"] }
+#### New rules text
 
-@recall topic: "angular"
-  → [{ id: 42, topics: ["angular", "architecture", "signals"], content: "We chose httpResource over HttpClient...", rank: 0 }]
+```markdown
+## Rules
 
-@recall "httpResource"
-  → Same match — FTS5 finds it via content text
-
-@recall "type safety" topic: "signals"
-  → Filtered by topic + content search — only memories tagged "signals" matching "type safety"
-
-@remember "Staging DB: postgres://staging.verba.cat:5432/verba"
-         topics: ["devops", "config"]
-  → { id: 43, topics: ["devops", "config"] }
-
-@remember "Signup form has 3 validation states: idle, validating, error"
-         topics: ["angular", "forms", "architecture"]
-  → { id: 44, topics: ["angular", "forms", "architecture"] }
-
-@list_topics
-  → [{ topic: "angular", count: 2 },
-      { topic: "architecture", count: 2 },
-      { topic: "signals", count: 1 },
-      { topic: "devops", count: 1 },
-      { topic: "config", count: 1 },
-      { topic: "forms", count: 1 },
-      { topic: "general", count: 0 }]
-
-@forget id: 42
-  → { deleted: true }
+- **Never write, edit, or modify implementation files** (`.ts`, `.py`, `.go`, `.js`, `.css`, `.html`, etc.) — you are a coordinator, not a builder. Only read files and write `.md` files through the `@spec-writer` subagent.
+- **Always run the full pipeline in order** — never skip steps. Each step depends on the previous.
+- **Always present the completed spec to the user and wait for explicit approval** — never auto-implement.
+- **Never implement yourself.** After the user approves the spec, offer to run **Implement mode** to hand off to the `@builder` subagent.
+- **If any subagent fails, report the failure and stop** — do not continue the pipeline.
+- **Run steps sequentially** — never parallelize dependent steps.
+- **After Verify mode, clearly state ✅ PASS or ❌ FAIL for each check.**
+- **If the caller asks for implementation without a spec, refuse and suggest Plan mode first.**
 ```
 
-### Good times to `@remember`
+### Builder Agent (`builder.md`) — New File
 
-| Scenario | Topics | Why useful |
-|---|---|---|
-| You made an architecture decision | `["angular", "architecture"]` | Future sessions skip the debate |
-| You found a breaking quirk in a library | `["workaround", "react"]` | Same bug won't waste time again |
-| You set up a staging environment | `["devops", "config"]` | Connection details at your fingertips |
-| You chose a library over another | `["decision", "signals"]` | Context for future trade-off discussions |
-| You discovered a browser bug | `["bug", "css", "safari"]` | Save hours of re-debugging |
+```yaml
+description: Implement features from an approved spec — writes code, creates files, and runs builds. Reads feature-spec.md and AGENTS.md. Use after the spec is approved by the user.
+mode: subagent
+permission:
+  read: allow
+  edit: allow
+  write: allow
+  glob: allow
+  grep: allow
+  bash:
+    '*': allow
+  webfetch: allow
+  websearch: deny
+  question: allow
+  task: deny
+```
+
+**Builder rules:**
+- Always read AGENTS.md and feature-spec.md first
+- Follow the design blueprint exactly — file structure, component tree, data flow, routes
+- Do not deviate from the spec without asking the user
+- Write all files specified in the File Plan
+- After writing code, run the build command
+- Report what was created, modified, and whether the build passed
+- If build fails, report errors and ask whether to fix
+- Never create or modify `.md` spec files (leave that to spec-writer)
+
+## File Plan
+
+### Files to Create
+
+| File | Purpose |
+|---|---|
+| `/home/albert/opencode-tools/agents/builder.md` | New subagent: implements code from an approved spec. Has full read/edit/write/bash permissions. Reads AGENTS.md and feature-spec.md, follows the design blueprint, writes all files, runs builds, reports results. |
+
+### Files to Modify
+
+| File | Changes |
+|---|---|
+| `/home/albert/opencode-tools/agents/orchestrator.md` | Frontmatter (edit/write → deny, add builder task), intro paragraph, rename Build mode → Plan mode, add Implement mode, replace rules section |
+
+### Detailed Change List for `orchestrator.md`
+
+1. **Frontmatter** (lines 1-21):
+   - Change `description` string
+   - Change `edit: allow` → `edit: deny`
+   - Change `write: allow` → `write: deny`
+   - Add `builder: allow` to `task:` block
+
+2. **Intro paragraph** (lines 23-25):
+   - Replace both lines with new text describing 3 modes and stating the orchestrator never writes code
+
+3. **Modes section** (lines 27-50):
+   - Replace entire "Build mode" with "Mode 1: Plan mode" (updated entry keywords, add explicit "wait for approval" and "offer implement" steps, add "Do NOT implement")
+   - Insert new "Mode 2: Implement mode" between Plan and Verify
+   - Rename existing "Verify mode" to "Mode 3: Verify mode" (update failure response to suggest running Implement mode again)
+
+4. **Rules section** (lines 52-58):
+   - Replace with expanded rules (8 rules instead of 5), explicitly forbidding writing implementation files, adding spec-precondition check, and strengthening the never-auto-implement rule
+
+### Detailed Content for `builder.md` (new file)
+
+Full file content as specified in the Design Blueprint section above — frontmatter with extended permissions plus body with workflow and rules.
+
+## States
+
+### Plan mode
+| State | Behavior |
+|---|---|
+| **Loading** | Subagents run sequentially; progress reported after each step |
+| **Empty** | N/A — the feature request itself is the input |
+| **Success — spec written** | Present spec to user, wait for explicit approval |
+| **Success — approved** | "The spec is ready. Say 'implement' to hand off to the builder agent, or review and make changes." |
+| **Error — subagent fails** | Report failure, stop pipeline, do not continue |
+
+### Implement mode
+| State | Behavior |
+|---|---|
+| **Loading** | Builder agent running |
+| **Empty / Precondition failure** | No approved `feature-spec.md` → "No approved spec found. Run Plan mode first." |
+| **Success — build passes** | "✅ Implementation complete. Would you like me to run Verify mode?" |
+| **Error — build fails** | Report builder errors, ask user to retry or fix spec |
+
+### Verify mode
+| State | Behavior |
+|---|---|
+| **Loading** | Verifier agent running |
+| **Success — all pass** | "✅ PASS" for each check |
+| **Error — checks fail** | "❌ FAIL" for each failing check with details; suggest running Implement mode again |
 
 ## Out of Scope
 
-- Phase 2: Database schema reader (separate spec)
-- Phase 3: Extended context tools (separate spec)
-- Remote/HTTP transport (stdio only for now)
-- Authentication or access control
-- Team memory sync (future feature)
+- **Changes to other agent files** — `explorer.md`, `proposer.md`, `designer.md`, `spec-writer.md`, and `verifier.md` are not modified by this spec
+- **Changes to AGENTS.md** — the global instructions file is out of scope
+- **Actual implementation code** — this spec covers agent configuration only, not product code in `/home/albert/programming/` or elsewhere
+- **Migration of existing in-flight features** — this spec defines the new process going forward; no existing specs need retrofitting
+- **Testing the agents themselves** — there is no test suite for `.md` agent files; verification is manual review
+- **Changes to the `general` built-in agent** — not part of this project
