@@ -11,6 +11,9 @@
   "agent": {
     "build": {
       "permission": {
+        "skill": {
+          "video-learning": "allow"
+        },
         "task": {
           "explorer": "allow",
           "proposer": "allow",
