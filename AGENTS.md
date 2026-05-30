@@ -1,16 +1,9 @@
 # Global Instructions
 
-## Plan Mode — Subagent Restriction
+## Subagent Restriction
 
-When the system prompt indicates I am in **plan mode** (read-only), I MUST NOT call the `task` tool to launch any subagent that would make file changes (edit, write, bash commands that modify files). This includes:
+When the system prompt indicates I am in **plan mode** (read-only), I MUST NOT call the `task` tool to launch any subagent that would make file changes (edit, write, bash commands that modify files).
 
-- `orchestrator` — writes files, edits code
-- `general` — writes files, edits code
-- Any subagent with `edit: allow` or `write: allow` permissions
+Safe subagents in plan mode: `explorer` (read-only).
 
-Instead, I must:
-1. Only read and inspect files
-2. Present a detailed plan to the user
-3. Ask the user to switch to build mode before proceeding
-
-The only subagents safe to launch in plan mode are pure read-only ones like `explorer` (edit/write denied).
+The `orchestrator` agent may be launched in plan mode only if the orchestrator itself is restricted to read-only tools (it will delegate to builder/verifier which require build mode).
