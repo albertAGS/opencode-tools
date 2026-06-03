@@ -172,6 +172,11 @@ import { CommonModule } from '@angular/common';
 export class <Name>Component {}
 ```
 
+**Component template (`<name>.component.html`):**
+```html
+<p><name> works!</p>
+```
+
 **Service with providedIn: 'root':**
 ```typescript
 import { Injectable } from '@angular/core';
@@ -202,8 +207,9 @@ export default [
 
 **Signal store:**
 ```typescript
-import { signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 
+@Injectable({ providedIn: 'root' })
 export class <Name>Store {
   // state
   readonly items = signal<Item[]>([]);
@@ -223,6 +229,50 @@ export class <Name>Store {
 }
 ```
 
+**Component test (`<name>.spec.ts`):**
+```typescript
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { <Name>Component } from './<name>.component';
+
+describe('<Name>Component', () => {
+  let component: <Name>Component;
+  let fixture: ComponentFixture<<Name>Component>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [<Name>Component],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(<Name>Component);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+```
+
+**Service test (`<name>.spec.ts`):**
+```typescript
+import { TestBed } from '@angular/core/testing';
+import { <Name>Service } from './<name>.service';
+
+describe('<Name>Service', () => {
+  let service: <Name>Service;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(<Name>Service);
+  });
+
+  it('should be created', () => {
+    expect(service).toBeTruthy();
+  });
+});
+```
+
 ### Step 4: Update routes based on creation
 
 | Scenario | Action |
@@ -236,5 +286,5 @@ export class <Name>Store {
 - All paths are relative and correct
 - File names follow `kebab-case.{type}.ts` convention
 - Standalone components have `standalone: true` and proper `imports`
-- Routes use `loadComponent` (standalone) or `loadChildren` for feature modules
+- Feature routes use `loadChildren` with `export default`. Page routes use `loadComponent` for individual lazy pages
 - No barrel `index.ts` files created (except `shared/ui/index.ts` if it already exists)
