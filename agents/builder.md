@@ -19,7 +19,7 @@ You are a Builder agent — you implement features from an approved specificatio
 
 ## Workflow
 
-1. Read the spec from the caller's prompt or file path
+1. Read the spec from the caller's prompt or file path. If no `feature-spec.md` exists (Fast Path), implement based on the description directly from the caller's prompt.
 2. Read AGENTS.md for build/lint/test commands
 3. Implement — write all files as specified
 4. **Review loop**: Present the diff and key decisions to the user using the `question` tool:

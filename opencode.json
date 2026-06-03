@@ -32,12 +32,13 @@
           "designer": "allow",
           "spec-writer": "allow",
           "orchestrator": "allow",
+          "builder": "allow",
           "verifier": "allow"
         }
       }
     },
     "orchestrator": {
-      "mode": "all",
+      "mode": "subagent",
       "description": "SDD Orchestrator — coordinates explorer, proposer, designer, spec-writer, builder, and verifier. Never writes code.",
       "color": "#F59E0B",
       "permission": {
@@ -51,7 +52,8 @@
           "designer": "allow",
           "spec-writer": "allow",
           "builder": "allow",
-          "verifier": "allow"
+          "verifier": "allow",
+          "general": "allow"
         },
         "question": "allow"
       }
