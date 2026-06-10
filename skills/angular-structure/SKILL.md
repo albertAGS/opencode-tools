@@ -15,85 +15,90 @@ description: |
 ```
 src/app/
 ├── core/
-│   ├── api/
-│   │   ├── http.service.ts
-│   │   └── api-error.handler.ts
+│   ├── layout/
+│   │   ├── sidebar.ts
+│   │   ├── topbar.ts
+│   │   └── layout.routes.ts
 │   ├── auth/
-│   │   ├── auth.service.ts
-│   │   ├── auth.store.ts
-│   │   └── token.interceptor.ts
-│   ├── guards/
-│   │   ├── auth.guard.ts
-│   │   └── role.guard.ts
-│   ├── enums/
-│   │   └── permission.enum.ts
-│   └── app.config.ts
+│   │   ├── auth-store.ts
+│   │   ├── auth.model.ts
+│   │   ├── auth-guard.ts
+│   │   ├── auth.routes.ts
+│   │   └── pages/
+│   │       ├── login/
+│   │       ├── register/
+│   │       └── password-recovery/
+│   ├── services/
+│   │   └── notification-api.ts
+│   └── interceptors/
+│       └── api-interceptor.ts
 │
-├── shell/
-│   ├── sidebar.component.ts
-│   ├── topbar.component.ts
-│   └── shell.routes.ts
-│
-├── features/
-│   ├── <feature>/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   ├── services/
-│   │   ├── models/
-│   │   ├── pipes/
-│   │   ├── guards/
-│   │   ├── resolvers/
-│   │   ├── <feature>.routes.ts
-│   │   └── <feature>.store.ts
+├── modules/
+│   ├── <domain>/
+│   │   ├── <feature>/
+│   │   │   ├── <feature>-api.ts
+│   │   │   ├── <feature>.model.ts
+│   │   │   ├── <feature>-guard.ts
+│   │   │   ├── <feature>.routes.ts
+│   │   │   ├── <feature>-store.ts
+│   │   │   ├── components/
+│   │   │   └── pages/
+│   │   │       └── <page>/
+│   │   │           ├── <page>.ts
+│   │   │           ├── <page>.html
+│   │   │           ├── <page>.css
+│   │   │           ├── components/
+│   │   │           ├── services/
+│   │   │           ├── models/
+│   │   │           ├── directives/
+│   │   │           └── pipes/
+│   │   └── ... (domain-level shared code)
 │   └── ...
 │
 └── shared/
+    ├── components/
+    │   └── notification/
+    │       ├── notification.ts
+    │       ├── notification.html
+    │       └── notification.css
     ├── models/
-    ├── guards/
-    ├── ui/
-    │   ├── button/
-    │   ├── modal/
-    │   ├── table/
-    │   ├── toast/
-    │   ├── form-fields/
-    │   ├── pagination/
-    │   └── confirm-dialog/
     ├── pipes/
+    │   └── date-pipe.ts
     ├── directives/
-    ├── validators/
-    └── helpers/
+    ├── utils/
+    └── validators/
 ```
 
 ## Artifact Creation Rules
 
 | Type | Location | Route update? | Store? |
 |------|----------|---------------|--------|
-| **Feature** | `features/<name>/` | Yes — add lazy route in `app.routes.ts` + create `<name>.routes.ts` | Yes — create `<name>.store.ts` |
-| **Page** | `features/<feature>/pages/` | Yes — add child route in `<feature>.routes.ts` | No — reads existing feature store |
-| **Component** | `features/<feature>/components/` or `shared/ui/<name>/` | No | No |
-| **Service** | `features/<feature>/services/` or `core/<domain>/` | No | No |
-| **Model** | `features/<feature>/models/` or `shared/models/` | No | No |
-| **Pipe** | Feature-local `pipes/` or `shared/pipes/` | No | No |
-| **Guard** | Feature-local `guards/` or `core/guards/` or `shared/guards/` | No | No |
-| **Directive** | Feature-local `directives/` or `shared/directives/` | No | No |
-| **Resolver** | Feature-local `resolvers/` | No | No |
-| **Store** | Feature-level only (`<feature>/<name>.store.ts`) | No | — |
-| **Enum** | `core/enums/` or feature-local `enums/` | No | No |
+| **Feature** | `modules/<domain>/<name>/` | Yes — add lazy route in `app.routes.ts` + create `<name>.routes.ts` | Yes — create `<name>-store.ts` |
+| **Page** | `modules/<domain>/<feature>/pages/<page>/` | Yes — add child route in `<feature>.routes.ts` | No — reads existing feature store |
+| **Component** | Feature `components/` or page-local `components/` or `shared/components/<name>/` | No | No |
+| **Service** | Feature root `<feature>-api.ts` or `core/services/` or core domain folder | No | No |
+| **Model** | Feature root `<feature>.model.ts` or `shared/models/` | No | No |
+| **Pipe** | Page-local `pipes/` or `shared/pipes/` | No | No |
+| **Guard** | Feature root `<feature>-guard.ts` or core domain folder | No | No |
+| **Directive** | Page-local `directives/` or `shared/directives/` | No | No |
+| **Resolver** | Feature root `<feature>-resolver.ts` | No | No |
+| **Store** | Feature-level only (`<name>-store.ts`) | No | — |
+| **Enum** | Core domain folder or feature-local `enums/` | No | No |
+| **Interceptor** | `core/interceptors/` | No | No |
 
 ## Store Strategy
 
-- **One signal store per feature** (`<feature>.store.ts`), never per component
-- Query params are the source of truth for filter/search state — only add store-derived state when filter interdependencies become complex
+- **One signal store per feature** (`<feature>-store.ts`), never per component
 - Cross-feature state lives in `core/` (auth/session, theme, notifications)
-- Stores are created automatically when a new feature is generated, not when creating individual pages or components
+- Stores are created automatically when a new feature is generated, not when creating individual components
 
 ## Naming Conventions
 
 - Folders: `kebab-case`
-- Files: `kebab-case.{type}.ts` (e.g., `product-list.page.ts`, `user.service.ts`)
+- Files: `kebab-case.ts` (components, directives, services — no type suffix), `kebab-case-{type}.ts` (pipes, guards, resolvers, interceptors — hyphen-separated suffix, e.g. `auth-guard.ts`, `date-pipe.ts`)
 - Classes: PascalCase
 - Selectors: `app-<name>` for components, `[app<Name>]` for directives
-- Barrel `index.ts` files: **do not create them** — they hurt tree-shaking with standalone components. Only `shared/ui/index.ts` may have one as a convenience re-export for the UI kit.
+- Barrel `index.ts` files: **do not create them** — they hurt tree-shaking with standalone components. Only `shared/components/index.ts` may have one as a convenience re-export for the UI kit.
 
 ## Interactive Workflow
 
@@ -103,11 +108,12 @@ Follow this step-by-step when the user asks to create something:
 
 Ask: **"What do you want to create?"**
 
-Options: feature, page, component, service, model, pipe, guard, resolver, directive, store, enum
+Options: feature, page, component, service, model, pipe, guard, resolver, directive, store, enum, interceptor
 
 ### Step 2: Ask follow-ups based on type
 
 #### For a **Feature**:
+- Domain name? (kebab-case, for grouping under `modules/`)
 - Feature name? (kebab-case)
 - Pages needed? (list each: page name, route path)
 - Components needed? (list each: component name)
@@ -124,7 +130,9 @@ Options: feature, page, component, service, model, pipe, guard, resolver, direct
 - Does it read from an existing feature store or manage local state?
 
 #### For a **Component**:
-- Feature or shared? If shared, which UI kit group? (button, modal, table, etc.)
+- Where does it live? Feature-level, page-local, or shared?
+- If page-local, which page?
+- If shared, which component group?
 - Component name?
 - Is it standalone? (default: yes)
 - Key inputs/outputs?
@@ -154,11 +162,16 @@ Options: feature, page, component, service, model, pipe, guard, resolver, direct
 - Enum name?
 - Values?
 
+#### For an **Interceptor**:
+- Core or feature-local?
+- Name?
+- Purpose / behavior?
+
 ### Step 3: Generate files
 
 Create all files with proper Angular 17+ boilerplate:
 
-**Standalone component:**
+**Standalone component (`<name>.ts`):**
 ```typescript
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -167,22 +180,22 @@ import { CommonModule } from '@angular/common';
   selector: 'app-<name>',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './<name>.component.html',
+  templateUrl: './<name>.html',
 })
 export class <Name>Component {}
 ```
 
-**Component template (`<name>.component.html`):**
+**Component template (`<name>.html`):**
 ```html
 <p><name> works!</p>
 ```
 
-**Service with providedIn: 'root':**
+**Service with providedIn: 'root' (`<name>-api.ts`):**
 ```typescript
 import { Injectable } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
-export class <Name>Service {}
+export class <Name>Api {}
 ```
 
 **Feature routes with standalone pages:**
@@ -201,27 +214,24 @@ export default [
 ```typescript
 {
   path: '<feature>',
-  loadChildren: () => import('./features/<feature>/<feature>.routes'),
+  loadChildren: () => import('./modules/<domain>/<feature>/<feature>.routes'),
 }
 ```
 
-**Signal store:**
+**Signal store (`<feature>-store.ts`):**
 ```typescript
 import { Injectable, signal, computed } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class <Name>Store {
-  // state
   readonly items = signal<Item[]>([]);
   readonly loading = signal(false);
   readonly selectedId = signal<string | null>(null);
 
-  // derived
   readonly selectedItem = computed(() =>
     this.items().find(i => i.id === this.selectedId())
   );
 
-  // actions
   async load() { /* ... */ }
   async create(data: Partial<Item>) { /* ... */ }
   async update(id: string, data: Partial<Item>) { /* ... */ }
@@ -232,7 +242,7 @@ export class <Name>Store {
 **Component test (`<name>.spec.ts`):**
 ```typescript
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { <Name>Component } from './<name>.component';
+import { <Name>Component } from './<name>';
 
 describe('<Name>Component', () => {
   let component: <Name>Component;
@@ -254,17 +264,17 @@ describe('<Name>Component', () => {
 });
 ```
 
-**Service test (`<name>.spec.ts`):**
+**Service test (`<name>-api.spec.ts`):**
 ```typescript
 import { TestBed } from '@angular/core/testing';
-import { <Name>Service } from './<name>.service';
+import { <Name>Api } from './<name>-api';
 
-describe('<Name>Service', () => {
-  let service: <Name>Service;
+describe('<Name>Api', () => {
+  let service: <Name>Api;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(<Name>Service);
+    service = TestBed.inject(<Name>Api);
   });
 
   it('should be created', () => {
@@ -277,14 +287,14 @@ describe('<Name>Service', () => {
 
 | Scenario | Action |
 |----------|--------|
-| New **feature** created | Create `<feature>.routes.ts` with child routes + add lazy import in `app.routes.ts` |
+| New **feature** created | Create `<feature>.routes.ts` with child routes + add lazy import in `app.routes.ts` (`./modules/<domain>/<feature>/<feature>.routes`) |
 | New **page** in existing feature | Add route entry in `<feature>.routes.ts` |
-| New **component / service / model / pipe / guard / resolver / store / enum** | No route update needed |
+| New **component / service / model / pipe / guard / resolver / store / enum / interceptor** | No route update needed |
 
 ### Step 5: Verify
 
 - All paths are relative and correct
-- File names follow `kebab-case.{type}.ts` convention
+- File names follow naming conventions: no type suffix for components/directives/services; hyphen-separated suffix for guards/pipes/resolvers/interceptors (`auth-guard.ts`)
 - Standalone components have `standalone: true` and proper `imports`
 - Feature routes use `loadChildren` with `export default`. Page routes use `loadComponent` for individual lazy pages
-- No barrel `index.ts` files created (except `shared/ui/index.ts` if it already exists)
+- No barrel `index.ts` files created (except `shared/components/index.ts` if it already exists)
