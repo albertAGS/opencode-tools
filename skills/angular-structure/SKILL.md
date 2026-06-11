@@ -173,8 +173,9 @@ Create all files with proper Angular 17+ boilerplate:
 
 **Standalone component (`<name>.ts`):**
 ```typescript
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-<name>',
@@ -182,7 +183,9 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule],
   templateUrl: './<name>.html',
 })
-export class <Name>Component {}
+export class <Name>Component {
+  private readonly router = inject(Router);
+}
 ```
 
 **Component template (`<name>.html`):**
@@ -192,10 +195,13 @@ export class <Name>Component {}
 
 **Service with providedIn: 'root' (`<name>-api.ts`):**
 ```typescript
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 
 @Injectable({ providedIn: 'root' })
-export class <Name>Api {}
+export class <Name>Api {
+  private readonly http = inject(HttpClient);
+}
 ```
 
 **Feature routes with standalone pages:**

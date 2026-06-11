@@ -41,6 +41,7 @@
       "mode": "subagent",
       "description": "SDD Orchestrator — coordinates explorer, proposer, designer, spec-writer, builder, and verifier. Never writes code.",
       "color": "#F59E0B",
+      "prompt": "{file:/home/albert/opencode-tools/agents/orchestrator.md}",
       "permission": {
         "read": "allow",
         "edit": "deny",
