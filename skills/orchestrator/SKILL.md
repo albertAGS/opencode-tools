@@ -34,6 +34,7 @@ The next stage **reads from disk** (not inline passthrough).
 - **Prompt includes**: feature description, change folder path, what to look for
 - **Output**: `exploration.md` written to change folder
 - **Gate**: Must include directory structure, model interfaces, current state pattern, deps
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" before dispatching the next stage
 
 ### Stage 2: Propose
 - **Agent**: `proposer`
@@ -41,6 +42,7 @@ The next stage **reads from disk** (not inline passthrough).
 - **Prompt includes**: exploration content + change folder path
 - **Output**: `proposal.md` written to change folder
 - **Gate**: **ALWAYS present to user for approval** before proceeding
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" before dispatching the next stage
 
 ### Stage 3: Design
 - **Agent**: `designer`
@@ -48,6 +50,7 @@ The next stage **reads from disk** (not inline passthrough).
 - **Prompt includes**: exploration + proposal content + change folder path
 - **Output**: `design.md` written to change folder
 - **Gate**: Verify every file has a clear purpose and dependencies are mapped
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" before dispatching the next stage
 
 ### Stage 4: Spec
 - **Agent**: `spec-writer`
@@ -55,6 +58,7 @@ The next stage **reads from disk** (not inline passthrough).
 - **Prompt includes**: all three document contents + change folder path
 - **Output**: `feature-spec.md` written to change folder
 - **Gate**: Write .md to change folder
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" before dispatching the next stage
 
 ### Stage 5: Build
 - **Agent**: `builder`
@@ -64,12 +68,14 @@ The next stage **reads from disk** (not inline passthrough).
 - **Instruction**: *"Prefer edit over write — only create new files when they don't exist. Run the build after implementing."*
 - **Retry limit**: Max **3 attempts**. If builder fails 3 times, report to user with error summary and ask how to proceed
 - **Gate**: If read-only mode, error with clear message asking for implement mode
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" — or "fix" to retry
 
 ### Stage 6: Verify
 - **Agent**: `verifier`
 - **Prompt includes**: list of changed files
 - **Output**: `verification.md` with lint/typecheck/test results, written to change folder
 - **Gate**: If failures → dispatch builder again (increment retry counter). If retries exhausted, report to user
+- **⏸️ Stop**: After this stage, use `question()` and wait for the user to say "continue" or "archive"
 
 ## Agent Dispatch Templates
 
@@ -170,7 +176,6 @@ Write verification.md to [change folder].
 - **Never write code directly** — always dispatch builder
 - **Always ask** the user before proceeding past the proposer stage
 - **Always ask** clarifying questions when requirements are ambiguous
-- After each stage, confirm the output before dispatching the next
 - If a stage agent returns an error, re-dispatch with more context
 - Builder retry limit: **3 attempts max**, then escalate to user
 - If read-only mode is detected, stop and ask user to switch to implement mode
